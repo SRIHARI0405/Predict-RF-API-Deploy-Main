@@ -1,10 +1,10 @@
 import time
-from flask import Flask, jsonify, Response
 import json
 import numpy as np
 import random
 import joblib
 import asyncio
+from flask import Flask, jsonify, Response
 from instagrapi import Client
 
 app = Flask(__name__)
@@ -20,8 +20,6 @@ try:
     cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
 except Exception as e:
     print(f"Instagram login failed: {e}")
-
-
 
 def calculate_username_legitimacy(username):
     username_legitimacy = "1"
@@ -43,25 +41,21 @@ def load_ml_model(model_filename):
         print(f"Error loading the model: {e}")
         return None
 
-@app.route('/followers/<username>')
-def get_profile_route(username):
-    # max_retries = 3
-    # retry_delay = 5
-    # for retry_number in range(1, max_retries + 1):
+async def fetch_follower_info(username, max_retries=3, retry_delay=5):
+    for retry_number in range(1, max_retries + 1):
         try:
             user_info = cl.user_info_by_username(username)
             legitimacy = calculate_username_legitimacy(username)
             user_id = user_info.pk
-            follower_count_value = user_info.follower_count
             followers_data = []
             followers_data1 = []
-            followers = cl.user_followers(user_id, amount = 1)
+            followers = cl.user_followers(user_id, amount=5)
             for follower_id in followers:
-              try:
-                follower_info = cl.user_info(follower_id)
-                if not follower_info.is_private:
-                  followers_data.append(follower_info.pk)
-              except Exception as e:
+                try:
+                    follower_info = cl.user_info(follower_id)
+                    if not follower_info.is_private:
+                        followers_data.append(follower_info.pk)
+                except Exception as e:
                     if "404 Client Error: Not Found" in str(e):
                         follower_details_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
                         followers_data.append(follower_details_values)
@@ -73,11 +67,11 @@ def get_profile_route(username):
 
             follower_data_count = len(followers_data)
             random_profile = 0
-            if follower_data_count > 1:
-               random_profile = 1
+            if follower_data_count > 2:
+                random_profile = 2
             else:
-              random_profile = follower_data_count
-            selected_followers = random.sample(followers_data,random_profile)
+                random_profile = follower_data_count
+            selected_followers = random.sample(followers_data, random_profile)
 
             for follower_id in selected_followers:
                 try:
@@ -100,9 +94,23 @@ def get_profile_route(username):
                         total_comments = sum(post.comment_count for post in posts)
                         total_interactions = total_likes + total_comments
                         engagement_rate = (total_interactions / total_posts) / max(1, follower_count) * 100
-                    followers_to_follows_ratio = round(follower_info.follower_count / max(1, follower_info.following_count), 5)
+                    followers_to_follows_ratio = round(
+                        follower_info.follower_count / max(1, follower_info.following_count), 5
+                    )
                     legitimacy = calculate_username_legitimacy(username)
-                    follower_details_values = [biography, follower_count, following_count, profile_pic_url, profile_pic_url_hd, media_count, is_private, is_verified, engagement_rate, followers_to_follows_ratio, legitimacy]
+                    follower_details_values = [
+                        biography,
+                        follower_count,
+                        following_count,
+                        profile_pic_url,
+                        profile_pic_url_hd,
+                        media_count,
+                        is_private,
+                        is_verified,
+                        engagement_rate,
+                        followers_to_follows_ratio,
+                        legitimacy,
+                    ]
                     followers_data1.append(follower_details_values)
                 except Exception as e:
                     print(f"Error fetching detailed info for {follower_id}: {e}")
@@ -123,20 +131,20 @@ def get_profile_route(username):
                         'data': {
                             'Data': user_info.username,
                             'real_percentage': round(real_percentage, 2),
-                            'fake_percentage': round(fake_percentage, 2)
-                        }
+                            'fake_percentage': round(fake_percentage, 2),
+                        },
                     }
                 else:
                     response = {
                         'success': False,
                         'message': 'Error loading ML model',
-                        'data': None
+                        'data': None,
                     }
             else:
                 response = {
                     'success': False,
                     'message': 'No non-private followers found.',
-                    'data': None
+                    'data': None,
                 }
             followers_data = []
             followers_data1 = []
@@ -147,26 +155,20 @@ def get_profile_route(username):
             if "404 Client Error: Not Found" in str(e):
                 follower_details_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
                 followers_data.append(follower_details_values)
-                # continue
+                continue
             elif "429" in str(e):
-                # print(f"Rate limit exceeded. Retrying in {retry_delay} seconds (Retry {retry_number}/{max_retries}).")
-                # time.sleep(retry_delay)
-                print('delay')
+                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds (Retry {retry_number}/{max_retries}).")
+                time.sleep(retry_delay)
             else:
-                response = {
-                    'success': False,
-                    'message': f"{e}",
-                    'data': None
-                }
+                response = {'success': False, 'message': f"{e}", 'data': None}
                 return jsonify(response)
 
-    # response = {
-    #     'success': False,
-    #     'message': 'Max retries reached. Unable to fetch profile.',
-    #     'data': None
-    # }
-    # return jsonify(response)
+    response = {'success': False, 'message': 'Max retries reached. Unable to fetch profile.', 'data': None}
+    return jsonify(response)
 
+@app.route('/followers/<username>')
+def get_profile_route(username):
+    return asyncio.run(fetch_follower_info(username))
 
 if __name__ == '__main__':
     try:
