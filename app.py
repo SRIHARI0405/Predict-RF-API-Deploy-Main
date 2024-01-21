@@ -55,7 +55,7 @@ def get_profile_route(username):
             follower_count_value = user_info.follower_count
             followers_data = []
             followers_data1 = []
-            followers = cl.user_followers(user_id, amount = 1)
+            followers = cl.user_followers(user_id, amount = 3)
             for follower_id in followers:
               try:
                 follower_info = cl.user_info(follower_id)
@@ -73,8 +73,8 @@ def get_profile_route(username):
 
             follower_data_count = len(followers_data)
             random_profile = 0
-            if follower_data_count > 1:
-               random_profile = 1
+            if follower_data_count > 2:
+               random_profile = 2
             else:
               random_profile = follower_data_count
             selected_followers = random.sample(followers_data,random_profile)

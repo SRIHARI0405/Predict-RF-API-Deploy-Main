@@ -7,7 +7,7 @@ jinja2==2.11.3
 MarkupSafe==1.1.1
 PySocks==1.7.1
 Werkzeug==1.0.1
-scikit-learn
+scikit-learn==1.2.2 
 joblib
 pillow==8.1.1
 asyncio==3.4.3
