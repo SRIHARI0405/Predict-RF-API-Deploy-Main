@@ -45,9 +45,9 @@ def load_ml_model(model_filename):
 
 @app.route('/followers/<username>')
 def get_profile_route(username):
-    max_retries = 3
-    retry_delay = 5
-    for retry_number in range(1, max_retries + 1):
+    # max_retries = 3
+    # retry_delay = 5
+    # for retry_number in range(1, max_retries + 1):
         try:
             user_info = cl.user_info_by_username(username)
             legitimacy = calculate_username_legitimacy(username)
@@ -55,7 +55,7 @@ def get_profile_route(username):
             follower_count_value = user_info.follower_count
             followers_data = []
             followers_data1 = []
-            followers = cl.user_followers(user_id, amount=30)
+            followers = cl.user_followers(user_id, amount=10)
             for follower_id in followers:
               try:
                 follower_info = cl.user_info(follower_id)
@@ -71,8 +71,8 @@ def get_profile_route(username):
 
             follower_data_count = len(followers_data)
             random_profile = 0
-            if follower_data_count > 20:
-                random_profile = 20
+            if follower_data_count > 5:
+                random_profile = 5
             else:
                 random_profile = follower_data_count
             selected_followers = random.sample(followers_data, random_profile)
@@ -142,7 +142,7 @@ def get_profile_route(username):
         except Exception as e:
             if "404 Client Error: Not Found" in str(e):
                 print(f"User not found: {username}")
-                continue
+                # continue
             elif "429" in str(e):
                 print(f"Rate limit exceeded. Retrying in {retry_delay} seconds (Retry {retry_number}/{max_retries}).")
                 time.sleep(retry_delay)
@@ -154,12 +154,12 @@ def get_profile_route(username):
                 }
                 return jsonify(response)
 
-    response = {
-        'success': False,
-        'message': 'Max retries reached. Unable to fetch profile.',
-        'data': None
-    }
-    return jsonify(response)
+    # response = {
+    #     'success': False,
+    #     'message': 'Max retries reached. Unable to fetch profile.',
+    #     'data': None
+    # }
+    # return jsonify(response)
 
 
 if __name__ == '__main__':
