@@ -4,13 +4,13 @@ import json
 import numpy as np
 import random
 import joblib
-import asyncio
+import concurrent.futures
 from instagrapi import Client
 
 app = Flask(__name__)
 
 INSTAGRAM_USERNAME = 'loopstar154'
-INSTAGRAM_PASSWORD = 'Starbuzz6@'
+INSTAGRAM_PASSWORD = 'Starbuzz1234@'
 
 proxy = "socks5://yoqytafd-6:2dng483b96qx@p.webshare.io:80"
 cl = Client(proxy=proxy)
@@ -23,6 +23,7 @@ except Exception as e:
 
 def calculate_username_legitimacy(username):
     username_legitimacy = "1"
+
     if username.count('_') > 4:
         username_legitimacy = "0"
     elif len(username) < 5 or len(username) > 30:
@@ -43,6 +44,12 @@ def load_ml_model(model_filename):
 def fetch_followers(user_id, amount=30):
     return cl.user_followers(user_id, amount=amount)
 
+def fetch_follower_info(follower_id):
+    return cl.user_info(follower_id)
+
+def fetch_posts(follower_id, amount=10):
+    return cl.user_medias(follower_id, amount=amount)
+
 @app.route('/followers/<username>')
 def get_profile_route(username):
     try:
@@ -50,38 +57,44 @@ def get_profile_route(username):
         legitimacy = calculate_username_legitimacy(username)
         user_id = user_info.pk
         followers_data = []
+
         fetched_followers = 0
-        while fetched_followers < 20:  
-            followers_batch = fetch_followers(user_id, amount=30)  
-            for follower_id in followers_batch:
-                follower_info = cl.user_info(follower_id)
-                if not follower_info.is_private:
-                    biography = 1 if follower_info.biography else 0
-                    username = follower_info.username
-                    follower_count = follower_info.follower_count
-                    following_count = follower_info.following_count
-                    profile_pic_url = 1 if follower_info.profile_pic_url else 0
-                    profile_pic_url_hd = 1 if follower_info.profile_pic_url_hd else 0
-                    media_count = follower_info.media_count
-                    is_private = 1 if follower_info.is_private else 0
-                    is_verified = 1 if follower_info.is_verified else 0
-                    posts = cl.user_medias(follower_id, amount=10)
-                    total_posts = len(posts)
-                    if total_posts == 0:
-                        engagement_rate = 0
-                    else:
-                        total_likes = sum(post.like_count for post in posts)
-                        total_comments = sum(post.comment_count for post in posts)
-                        total_interactions = total_likes + total_comments
-                        engagement_rate = (total_interactions / total_posts) / max(1, follower_count) * 100
-                    followers_to_follows_ratio = round(follower_info.follower_count / max(1, follower_info.following_count), 5)
-                    follower_details_values = [ biography, follower_count, following_count, profile_pic_url, profile_pic_url_hd, media_count, is_private, is_verified, engagement_rate, followers_to_follows_ratio, legitimacy]
-                    followers_data.append(follower_details_values)
-                    fetched_followers += 1
-                    if fetched_followers >= 20:
-                        break
-                    time.sleep(1)
-        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            while fetched_followers < 10:  
+                followers_batch = fetch_followers(user_id, amount=30)  
+                tasks = []
+                for follower_id in followers_batch:
+                    tasks.append(executor.submit(fetch_follower_info, follower_id))
+                
+                for future in concurrent.futures.as_completed(tasks):
+                    follower_info = future.result()
+                    if not follower_info.is_private:
+                        biography = 1 if follower_info.biography else 0
+                        username = follower_info.username
+                        follower_count = follower_info.follower_count
+                        following_count = follower_info.following_count
+                        profile_pic_url = 1 if follower_info.profile_pic_url else 0
+                        profile_pic_url_hd = 1 if follower_info.profile_pic_url_hd else 0
+                        media_count = follower_info.media_count
+                        is_private = 1 if follower_info.is_private else 0
+                        is_verified = 1 if follower_info.is_verified else 0
+                        posts = fetch_posts(follower_id, amount=10)
+                        total_posts = len(posts)
+                        if total_posts == 0:
+                            engagement_rate = 0
+                        else:
+                            total_likes = sum(post.like_count for post in posts)
+                            total_comments = sum(post.comment_count for post in posts)
+                            total_interactions = total_likes + total_comments
+                            engagement_rate = (total_interactions / total_posts) / max(1, follower_count) * 100
+                        followers_to_follows_ratio = round(follower_info.follower_count / max(1, follower_info.following_count), 5)
+                        follower_details_values = [ biography, follower_count, following_count, profile_pic_url, profile_pic_url_hd, media_count, is_private, is_verified, engagement_rate, followers_to_follows_ratio, legitimacy]
+                        followers_data.append(follower_details_values)
+                        fetched_followers += 1
+                if fetched_followers >= 10:
+                  break
+                time.sleep(1)
+
         if followers_data:
             model_filename = 'Final_RFC_model3.pkl'
             ml_model = load_ml_model(model_filename)
@@ -117,6 +130,7 @@ def get_profile_route(username):
             }
         
         json_data = json.dumps(response, ensure_ascii=False)
+        print(json_data)
         return Response(json_data, content_type='application/json; charset=utf-8')
 
     except Exception as e:
@@ -143,6 +157,6 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug = False)
+        app.run(debug=False)
     except Exception as e:
         print(f"An error occurred: {e}")
