@@ -3,7 +3,6 @@ from flask import Flask, jsonify
 import random
 import numpy as np
 import joblib
-from pyngrok import ngrok
 import multiprocessing
 from instagrapi import Client
 
@@ -57,7 +56,6 @@ def get_profile_route(username):
 
         followers = cl.user_followers(user_id, amount=60)
         followers = list(followers)
-        start_time = time.time()
         with multiprocessing.Pool(processes=8) as pool:
             follower_infos = pool.map(fetch_follower_info, followers)
         
@@ -102,11 +100,6 @@ def get_profile_route(username):
                 followers_data.append(follower_details_values)
             else:
                 fake_followers_data.append(follower_info.pk)
-
-
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        print(f"Time taken to fetch 100 followers: {elapsed_time} seconds")
 
         selected_followers = random.sample(followers_data, min(len(followers_data), 50))
         if selected_followers:
