@@ -55,12 +55,13 @@ def get_profile_route(username):
         user_info = cl.user_info_by_username(username)
         user_id = user_info.pk
 
-        followers = cl.user_followers(user_id, amount=60)
+        followers = cl.user_followers(user_id, amount=30)
         followers = list(followers)
-        start_time = time.time()
-        with multiprocessing.Pool(processes=8) as pool:
+
+        with multiprocessing.Pool(processes=4) as pool:
             follower_infos = pool.map(fetch_follower_info, followers)
         
+        start_time = time.time()
         followers_data = []
         fake_followers_data = []
         for follower_info in follower_infos:
@@ -84,22 +85,14 @@ def get_profile_route(username):
                     total_interactions = total_likes + total_comments
                     engagement_rate = (total_interactions / total_posts) / max(1, follower_count) * 100
                 followers_to_follows_ratio = round(follower_info.follower_count / max(1, follower_info.following_count), 5)
-                # legitimacy = calculate_username_legitimacy(username)
-                # legit = []
-                # with multiprocessing.Pool(processes=4) as pool:
-                #   legit = pool.map(calculate_username_legitimacy, username)
-                # legitimacy = legit[0];
-                # print(legitimacy)
-                if username.count('_') > 4:
-                  username_legitimacy = "0"
-                elif len(username) < 5 or len(username) > 30:
-                  username_legitimacy = "0"
-                elif sum(char.isdigit() for char in username) > 4:
-                  username_legitimacy = "0"
-                else:
-                  username_legitimacy = 1
-                follower_details_values = [biography, follower_count, following_count, profile_pic_url, profile_pic_url_hd, media_count, is_private, is_verified, engagement_rate, followers_to_follows_ratio, username_legitimacy]
+                #legitimacy = calculate_username_legitimacy(username)
+                with multiprocessing.Pool(processes=4) as pool:
+                  legitimacy = pool.map(calculate_username_legitimacy, username)
+                #legitimacy = 1
+                follower_details_values = [biography, follower_count, following_count, profile_pic_url, profile_pic_url_hd, media_count, is_private, is_verified, engagement_rate, followers_to_follows_ratio, legitimacy]
                 followers_data.append(follower_details_values)
+                print(follower_details_values,"follower_details_values")
+                print(f"Follower {username} fetched")
             else:
                 fake_followers_data.append(follower_info.pk)
 
@@ -114,6 +107,7 @@ def get_profile_route(username):
             ml_model = load_ml_model(model_filename)
             if ml_model:
                 prediction = ml_model.predict(selected_followers)
+                print(prediction,"prediction")
                 real_count = np.count_nonzero(prediction == 0)
                 fake_count = np.count_nonzero(prediction == 1)
                 real_percentage = (real_count / len(prediction)) * 100
@@ -152,6 +146,9 @@ def get_profile_route(username):
 
 if __name__ == '__main__':
     try:
-        app.run(debug=False)
+        ngrok.set_auth_token("2arff4tSwjTYnwyIFidgSiirvAR_455g4FP2KkaQprbcYRGcu")
+        public_url = ngrok.connect(addr="127.0.0.1:5003", proto="http", bind_tls=True)
+        print(f' * ngrok tunnel "{public_url}" -> "http://127.0.0.1:5003"')
+        app.run(port=5003)
     except Exception as e:
         print(f"An error occurred: {e}")
