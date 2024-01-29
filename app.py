@@ -54,14 +54,24 @@ def get_profile_route(username):
         user_info = cl.user_info_by_username(username)
         user_id = user_info.pk
 
-        followers = cl.user_followers(user_id, amount=60)
+        followers = cl.user_followers(user_id, amount=100)
         followers = list(followers)
-        with multiprocessing.Pool(processes=8) as pool:
-            follower_infos = pool.map(fetch_follower_info, followers)
-        
+        list_length = len(followers)
+        list_split = list_length // 3 
+        part1 = followers[:list_split]
+        part2 = followers[list_split:2*list_split]
+        part3 = followers[2*list_split:]
+
+        with multiprocessing.Pool(processes=2) as pool:
+          follower_infos1 = pool.map(fetch_follower_info, part1)
+        with multiprocessing.Pool(processes=2) as pool:
+          follower_infos2 = pool.map(fetch_follower_info, part2)        
+        with multiprocessing.Pool(processes=2) as pool:
+          follower_infos3 = pool.map(fetch_follower_info, part3)
+        final_list = follower_infos1 + follower_infos2 + follower_infos3
         followers_data = []
         fake_followers_data = []
-        for follower_info in follower_infos:
+        for follower_info in final_list:
             if follower_info and not follower_info.is_private:
                 biography = 1 if follower_info.biography else 0
                 username = follower_info.username
@@ -82,12 +92,6 @@ def get_profile_route(username):
                     total_interactions = total_likes + total_comments
                     engagement_rate = (total_interactions / total_posts) / max(1, follower_count) * 100
                 followers_to_follows_ratio = round(follower_info.follower_count / max(1, follower_info.following_count), 5)
-                # legitimacy = calculate_username_legitimacy(username)
-                # legit = []
-                # with multiprocessing.Pool(processes=4) as pool:
-                #   legit = pool.map(calculate_username_legitimacy, username)
-                # legitimacy = legit[0];
-                # print(legitimacy)
                 if username.count('_') > 4:
                   username_legitimacy = "0"
                 elif len(username) < 5 or len(username) > 30:
